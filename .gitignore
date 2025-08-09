@@ -1,0 +1,10 @@
+# Arduino / ESP32
+*.ino.cpp
+*.elf
+*.bin
+*.map
+build/
+.pio/
+.vscode/
+.DS_Store
+__pycache__/

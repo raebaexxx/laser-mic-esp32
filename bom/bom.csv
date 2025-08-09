@@ -1,0 +1,15 @@
+Category,Part,Example Value/Model,Qty,Notes
+Photodiode,BPW34 or OPT101,BPW34,1,Fast PIN photodiode
+OpAmp,TL072 or OPA2134,TL072,1,Low-noise JFET input dual op-amp
+Feedback Resistor,Rf,1M,1,Sets TIA gain
+Feedback Capacitor,Cf,10pF,1,Stability for TIA
+Filter,High-pass C (series),1uF,1,Coupling
+Filter,High-pass R (to GND),100k,1,Set HPF cutoff
+Filter,Low-pass R (series),3.3k,1,Set LPF cutoff
+Filter,Low-pass C (to GND),10nF,1,Set LPF cutoff (~4.8 kHz with 3.3k)
+Bias Divider,Rbias1,100k,1,To 3.3V
+Bias Divider,Rbias2,100k,1,To GND -> ~1.65V
+ESP32,DevKit (WROOM-32),ESP32-DevKitC/DOIT,1,Use ADC1 GPIO34
+Laser,Red Laser Module,650nm 3-5V 1-5mW,1,Low power, focusable
+Misc,Audio Jack 3.5mm,Stereo or mono,1,Optional line-out
+Misc,Power rails,5V & 3.3V,1,ESP32 via USB; OpAmp via 5-9V depending on part
