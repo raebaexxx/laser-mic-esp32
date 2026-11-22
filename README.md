@@ -1,240 +1,332 @@
-Laser Microphone (ESP32) — Educational Build
-<div align="center">
-Show Image
-Show Image
-Show Image
-Show Image
-A DIY, open-source laser microphone system using ESP32 microcontroller for educational physics and audio experiments
-Created by Tommy Tal & Zion Swissa
-</div>
+# Granite NDT — laser vibrometer + impact-modal analysis
 
-IMPORTANT LEGAL & SAFETY NOTICE
+A complete Rust implementation — with a dependency-free host workspace — of a
+non-destructive testing (NDT) system for granite slabs.  A low-power laser vibrometer measures
+the surface velocity of a slab after a controlled hammer tap; the host extracts
+modal frequencies and damping ratios, compares them with a healthy reference,
+and produces a condition report.
 
-This project is strictly for educational purposes only
+This is a rewrite of the original
+[`laser-mic-esp32`](https://github.com/ByteWhiz/laser-mic-esp32) educational
+laser-microphone project.  The original firmware sampled the ESP32's internal
+12-bit ADC in a busy loop at roughly 8 kHz and sent raw UDP bytes.  That is not
+adequate for impact-modal NDT: the sample rate is too low for thickness and
+higher-order modes, the ADC is noisy and non-linear, and raw UDP has no
+sequence numbers, timestamps, sample-rate metadata, or integrity check.
 
-Use ONLY on your own property and with explicit consent
+The rewrite keeps the same physical idea but replaces the acquisition,
+transport, analysis and reporting chain end-to-end.
 
+> **Course context.** The software in this repository is the author's part of a
+> two-person course project.  The analog front-end, laser mounting and slab
+> fixture are the hardware partner's part.  A physics-inspired digital twin is
+> included so the complete software pipeline can be validated before the
+> physical instrument is assembled.
 
+> **По-русски:** краткое объяснение сути и принципа работы — в
+> [`docs/overview.ru.md`](docs/overview.ru.md).
 
-Eavesdropping without permission is illegal in most jurisdictions
-Always use low-power laser modules (≤5mW Class IIIa)
-Wear proper laser safety glasses when working with laser components
-Never aim lasers at people, vehicles, or aircraft
+---
 
+## What works today
 
-📋 Table of Contents
+| Component | Status |
+|---|---|
+| Wire protocol, CRC32, packet codec | Implemented and unit-tested |
+| UDP reassembly with loss/reorder/duplicate/jitter statistics | Implemented and unit-tested |
+| DSP: FFT, windows, filters, Hilbert envelope, spectra | Implemented and unit-tested |
+| Impact detection, modal peak picking, damping estimation | Implemented and tested on synthetic modes |
+| Reference profiles, anomaly scoring, condition labels | Implemented and tested |
+| Self-contained HTML report with inline SVG + BMP spectrogram | Implemented |
+| Animated HTML scope: scrolling waveform, spectrum, packet stream, audio | Implemented |
+| Interactive suite dashboard with all scenarios in one page | Implemented |
+| Digital twin: plate model, defects, sensor, network impairments | Implemented; 8/8 validation scenarios pass |
+| Host: live UDP receiver, WAV analyser, reference builder | Implemented; UDP loopback test passes |
+| ESP32 firmware (Rust, ESP-IDF, I2S + WiFi/UDP) | Compiles and links with ESP-IDF v5.5; not yet flashed on hardware |
+| Hardware schematic / PCB | Not in this repository; see `hardware/README.md` |
 
-Overview
-Features
-Quick Start Guide
-Hardware Requirements
-Project Structure
-Installation
-Usage
-Technical Specifications
-Troubleshooting
-Contributing
-License
+The host workspace builds and tests with stable Rust and **no external
+crates**.  The firmware is a separate, workspace-excluded crate because it
+needs the Xtensa ESP-IDF toolchain.
 
+---
 
-Overview
-This project demonstrates the physics principles behind laser interferometry and vibration detection through a complete DIY laser microphone system. The setup uses a laser beam reflected off a vibrating surface (like a window) to detect sound waves, converting optical variations into electrical signals processed by an ESP32 microcontroller.
-How It Works
+## Why this architecture
 
-Laser transmission: A 650nm laser beam is aimed at a reflective surface
-Vibration detection: Sound waves cause microscopic vibrations in the surface
-Optical sensing: A photodiode captures the reflected laser beam variations
-Signal processing: Analog front-end amplifies and filters the signal
-Digital conversion: ESP32 samples the audio at ~8kHz via ADC
-Network streaming: Audio data is transmitted over UDP for real-time processing
+```
+ laser ──► photodiode/PSD ──► TIA + anti-alias ──► PCM1808 ──► I2S
+                                                                  │
+                                                           ESP32 firmware
+                                                        framed UDP packets
+                                                                  │
+                                                                  ▼
+ PC host:  reassembly ──► preprocessing ──► impact detection ──► FFT
+                                                                  │
+                                          modal peaks + damping ◄─┘
+                                                     │
+                                          feature extraction
+                                                     │
+                                    reference comparison / classifier
+                                                     │
+                                        HTML + WAV + CSV report
+```
 
+The microcontroller only acquires and streams raw samples.  All DSP,
+classification and reporting run on the PC.  This keeps the measurement method
+versionable and testable, avoids floating-point and memory constraints on the
+MCU, and makes it possible to re-analyse stored captures when the algorithm
+changes.  At 48 kHz, mono, 24-bit, the raw stream is only ~115 kB/s.
 
-Features
-FeatureDescriptionComplete Hardware DesignFull schematic with TIA + band-pass filter front-endESP32 FirmwareArduino IDE compatible, ~8kHz sampling, UDP streamingPython ReceiverReal-time UDP packet capture and WAV file generationBill of MaterialsComprehensive BOM with part numbers and suppliersDocumentationDetailed build guide, alignment procedures, and safety protocolsReal-time ProcessingLive audio streaming over WiFi networkCost EffectiveTotal build cost under $50 USD
+---
 
-Quick Start Guide
-Prerequisites
+## Quick start
 
-Arduino IDE (latest version)
-Python 3.7+
-Basic electronics assembly skills
-Laser safety knowledge
+### 1. Build and test the host side
 
-1. Hardware Assembly
-bash# Navigate to hardware documentation
-cd hardware/
-# View the schematic
-open laser_mic_schematic.pdf
-Circuit Flow: BPW34 Photodiode → TIA Stage → Band-pass Filter → ESP32 GPIO34
-2. Firmware Setup
-bash# Open the Arduino sketch
-arduino firmware/arduino/LaserMicESP32/LaserMicESP32.ino
-Configure your network settings:
-cppconst char* ssid = "YOUR_WIFI_SSID";
-const char* password = "YOUR_WIFI_PASSWORD";
-const char* udp_host = "192.168.1.100";  // Receiver IP
-3. Software Installation
-bash# Install Python dependencies
-pip install numpy scipy wave
+```bash
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
+```
 
-# Run the receiver
-python docs/udp_receiver_wav.py
-4. System Test
+### 2. Run the digital twin
 
-Setup: Aim 650nm laser at a window you own
-Audio source: Play music near the window (inside)
-Detection: Position photodiode to capture reflected laser
-Recording: Audio will be saved as capture.wav
+```bash
+cargo run -p granite-sim --bin granite-twin -- suite --out out/suite
+```
 
+This writes one report bundle per scenario and a validation index:
 
-Hardware Requirements
-Core Components
-ComponentPart NumberQuantityPurposeMicrocontrollerESP32 DevKit v11Signal processing & networkingPhotodiodeVishay BPW341Optical-to-electrical conversionOp-AmpTL072CP / OPA21341Signal amplificationLaser Module650nm 5mW adjustable1Optical carrier
-Supporting Components
+```text
+out/suite/showcase.html
+out/suite/index.html
+out/suite/healthy/report.html
+out/suite/healthy/scope.html
+out/suite/healthy/capture.wav
+out/suite/healthy/modes.csv
+...
+```
 
-Resistors: 1MΩ (feedback), 10kΩ, 1kΩ
-Capacitors: 100nF, 10µF, 1µF (ceramic/electrolytic)
-Power Supply: 5V USB for ESP32, 3.3V for laser
-Connectors: Breadboard or PCB for assembly
+Open **`out/suite/showcase.html`** in a browser.  It is an interactive
+control room: pick any of the eight scenarios on the left and the selected
+animated scope loads on the right, without a page reload.  Each scope is a
+self-contained instrument: a scrolling waveform with impact markers and packet
+gaps, a moving-RMS trigger strip, the averaged modal spectrum with detected and
+reference modes, transport counters, and the mode table.  The page starts
+animating immediately (muted); click **🔇** for sound, click the trace to seek,
+use **⏭ Next tap** to jump to an impact, and click a mode row to highlight it in
+the spectrum.  Nothing is fetched from the network — the HTML embeds the
+samples itself.
 
-Total estimated cost: $35-50 USD
+A single animated scope without the full bundle:
 
-Project Structure
-laser-microphone/
-├── firmware/
-│   └── arduino/
-│       └── LaserMicESP32/
-│           ├── LaserMicESP32.ino    # Main ESP32 sketch
-│           ├── audio_capture.h      # ADC sampling functions
-│           └── network_utils.h      # UDP streaming utilities
-├── hardware/
-│   ├── laser_mic_schematic.pdf     # Complete circuit diagram
-│   ├── pcb_layout.pdf              # Optional PCB design
-│   └── assembly_guide.md           # Step-by-step build instructions
-├── bom/
-│   └── components.csv              # Bill of materials with sources
-├── docs/
-│   ├── udp_receiver_wav.py         # Python audio receiver
-│   ├── calibration_guide.md        # Alignment and tuning procedures
-│   ├── theory_background.md        # Technical theory explanation
-│   └── safety_guidelines.md        # Comprehensive safety information
-├── examples/
-│   ├── test_patterns/              # Audio test files
-│   └── sample_recordings/          # Example captured audio
-├── README.md
-└── LICENSE
+```bash
+cargo run -p granite-sim --bin granite-twin -- scope --scenario crack \
+  --out out/scope-crack.html
+```
 
-⚙️ Technical Specifications
-Performance Characteristics
-ParameterSpecificationFrequency Response300Hz - 3.5kHzSampling Rate~8kHz (ESP32 ADC)Bit Depth12-bit ADC resolutionOperating Range5-50 meters (optimal: 10-20m)Power Consumption<200mA @ 5VNetwork ProtocolUDP over WiFi 802.11n
-Environmental Considerations
+For the full demo — tests, suite, host analysis and automatic browser launch
+when a desktop is available:
 
-Operating Temperature: 0°C to 50°C
-Humidity: <80% RH (non-condensing)
-Vibration Sensitivity: Window thickness 3-8mm optimal
-Ambient Light: Works in daylight conditions
+```bash
+./scripts/demo.sh
+```
 
+> **Why not Wokwi?** Wokwi is useful for WiFi/UDP and GPIO experiments, but it
+> cannot run this whole acquisition chain: ESP32 I2S simulation is only partial,
+> the Rust firmware must be built locally and uploaded as a `.bin`/`.elf`, and
+> the public gateway does not allow the PC host to receive packets from the
+> simulated board.  The native HTML scope runs the real host DSP on the real
+> digital-twin byte stream, so it is the reliable visual demo.  Wokwi remains an
+> option for a small WiFi/protocol-only test; see
+> [`docs/digital-twin.md`](docs/digital-twin.md#10-why-not-wokwi).
 
-Installation
-Arduino IDE Setup
+The current validation result is **8/8 scenarios matched**:
 
-Install ESP32 Board Package:
-File → Preferences → Additional Board Manager URLs:
-https://dl.espressif.com/dl/package_esp32_index.json
+| Scenario | Expected | Predicted | Score |
+|---|---|---:|---:|
+| healthy | HEALTHY | HEALTHY | 1.9 |
+| healthy-noisy | HEALTHY | HEALTHY | 4.0 |
+| lossy-link | HEALTHY | HEALTHY | 4.0 |
+| crack | DEFECT | DEFECT | 70.5 |
+| delamination | DEFECT | DEFECT | 71.4 |
+| void | DEFECT | DEFECT | 57.6 |
+| thickness-plus | SUSPECT | SUSPECT | 35.1 |
+| overloaded | HEALTHY | HEALTHY | 24.9 |
 
-Select Board: ESP32 Dev Module
-Configure Pins:
+A single scenario:
 
-ADC Input: GPIO34
-Status LED: GPIO2 (built-in)
+```bash
+cargo run -p granite-sim --bin granite-twin -- run --scenario crack
+cargo run -p granite-sim --bin granite-twin -- list
+cargo run -p granite-sim --bin granite-twin -- selftest
+```
 
+### 3. Analyse a WAV file with the host
 
+The digital-twin WAVs are ordinary 32-bit float mono WAV files, so the host can
+analyse them exactly like a live capture:
 
-Python Environment
-bash# Create virtual environment
-python -m venv laser-mic-env
-source laser-mic-env/bin/activate  # Linux/Mac
-# or
-laser-mic-env\Scripts\activate     # Windows
+```bash
+cargo run -p granite-host --bin granite-host -- analyze \
+  --wav out/suite/healthy/capture.wav \
+  --reference out/suite/healthy/reference.txt \
+  --out out/host-healthy
+```
 
-# Install dependencies
-pip install -r requirements.txt
+Build a reference profile from a pristine slab capture:
 
-Usage
-Basic Operation
+```bash
+cargo run -p granite-host --bin granite-host -- reference \
+  --wav healthy.wav --out reference.txt \
+  --name "Black Galaxy slab A" \
+  --length 0.600 --width 0.400 --thickness 0.020 --material granite
+```
 
-Power on the ESP32 and wait for WiFi connection
-Start Python receiver on your computer
-Align laser for maximum photodiode signal
-Begin recording by triggering the ESP32
-Stop recording and process the capture.wav file
+### 4. Receive live data from the ESP32
 
-Advanced Configuration
-Sensitivity Adjustment
-cpp// In LaserMicESP32.ino
-#define ADC_GAIN_FACTOR 2.5    // Adjust for signal strength
-#define FILTER_CUTOFF_LOW 300  // High-pass filter (Hz)
-#define FILTER_CUTOFF_HIGH 3500 // Low-pass filter (Hz)
-Network Optimization
-python# In udp_receiver_wav.py
-BUFFER_SIZE = 1024     # UDP packet size
-SAMPLE_RATE = 8000     # Must match ESP32 setting
-BIT_DEPTH = 16         # Output WAV format
+```bash
+cargo run -p granite-host --bin granite-host -- listen \
+  --bind 0.0.0.0:5005 --duration 10 \
+  --reference reference.txt --out out/live
+```
 
-Troubleshooting
-Common Issues
-ProblemSymptomsSolutionNo WiFi ConnectionStatus LED not blinkingCheck SSID/password in codePoor Audio QualityDistorted/noisy recordingAdjust laser alignment and gainNo Signal DetectionSilent WAV outputVerify photodiode connectionsNetwork TimeoutUDP packets droppedCheck firewall settings
-Debug Commands
-bash# Monitor ESP32 serial output
-arduino --port /dev/ttyUSB0 --board esp32:esp32:esp32 --upload --verify
+Use `--duration 0` to stop after `--idle` seconds of silence instead of a fixed
+duration.  The receiver prints packet loss, jitter and invalid-datagram counts.
 
-# Test UDP reception
-nc -u -l 12345  # Listen on port 12345
+### 5. Build the firmware
 
-# Analyze audio spectrum
-python -c "import scipy.io.wavfile; print(scipy.io.wavfile.read('capture.wav'))"
+The firmware is excluded from the workspace and needs the Espressif Rust
+toolchain:
 
-Contributing
-We welcome contributions! Please see our Contributing Guidelines.
-Development Setup
-bash# Clone repository
-git clone https://github.com/yourusername/laser-microphone.git
-cd laser-microphone
+```bash
+cargo install espup espflash
+espup install
+. "$HOME/export-esp.sh"
 
-# Create feature branch
-git checkout -b feature/your-enhancement
+cd firmware/granite-firmware
+GRANITE_WIFI_SSID="my-network" \
+GRANITE_WIFI_PASS="my-password" \
+GRANITE_HOST_IP="192.168.1.50" \
+cargo run --release
+```
 
-# Make changes and test
-# Submit pull request
-Areas for Improvement
+See [`firmware/README.md`](firmware/README.md) for wiring, pin assignments,
+sdkconfig notes and troubleshooting.
 
- Digital signal processing enhancements
- PCB design optimization
- Real-time audio streaming GUI
- Mobile app for remote monitoring
- Advanced filtering algorithms
+> The firmware was built with `esp-idf-hal 0.47`, `esp-idf-svc 0.53` and
+> ESP-IDF v5.5 (`cargo build --release` produces a 32-bit Xtensa ELF).  It has
+> **not** been flashed or run on hardware.  Treat the first flash as a bring-up
+> step; check the clock pins, ADC slot width and WiFi link before trusting the
+> data.
 
+---
 
-Educational Resources
+## Repository layout
 
-Physics: Laser Interferometry Principles
-Electronics: Transimpedance Amplifier Design
-Programming: ESP32 ADC Best Practices
-Safety: Laser Safety Standards
+```text
+crates/
+  granite-protocol/   no_std wire format, CRC32, sample codecs
+  granite-core/       DSP, analysis, classifier, WAV I/O, HTML report
+  granite-sim/        plate model, defects, sensor/network simulation, CLI
+  granite-host/       UDP receiver, WAV analysis, reference builder, CLI
+firmware/
+  granite-firmware/   Rust ESP-IDF firmware (I2S + WiFi/UDP)
+docs/
+  architecture.md     system design and data flow
+  protocol.md         byte-level UDP specification
+  dsp.md              algorithms and parameter choices
+  digital-twin.md     plate model, scenarios and validation
+  hardware.md         analog front-end, ADC, wiring and safety
+  calibration.md      reference measurement and tap procedure
+  roadmap.md          bring-up plan and future work
+  BUILD_NOTES.md      toolchain prerequisites and troubleshooting
+bom/
+  bom.csv             updated bill of materials
+hardware/
+  README.md           schematic status, block diagram and design checklist
+```
 
+---
 
-Acknowledgments
+## What was wrong with the original
 
-Tommy Tal & Zion Swissa - Project creators and main developers
-Vishay Semiconductors for BPW34 photodiode specifications
-Espressif Systems for ESP32 development platform
-Open-source community for audio processing libraries
-Academic research in laser-based acoustic detection
+| Original | Rewrite |
+|---|---|
+| Arduino sketch, `analogRead(GPIO34)` in a busy loop | Rust ESP-IDF, external 24-bit I2S ADC at 48 kHz |
+| ~8 kHz, 12-bit, noisy internal ADC | 48 kHz, 24-bit, proper anti-alias front-end |
+| Raw UDP, no metadata | 52-byte header with magic, version, sequence, sample index, timestamp, rate, channels, format, CRC32 |
+| No loss/reorder handling | Jitter buffer/reassembler with gaps, duplicates, reorder and jitter statistics |
+| 20-line Python raw dump | Full host pipeline: WAV, DSP, modes, damping, features, classifier, HTML/CSV |
+| No reference/calibration concept | Healthy reference profiles with tolerances and anomaly scoring |
+| README claims missing files and a full schematic | Docs match the repository; missing hardware is explicitly marked |
+| No way to test without hardware | Physics-inspired digital twin with impairments and validation suite |
 
+The original repository's `hardware/laser_mic_schematic.pdf` was a 38-byte
+placeholder containing the text `% placeholder schematic`; the claimed
+`audio_capture.h`, `network_utils.h`, `calibration_guide.md`,
+`theory_background.md` and `safety_guidelines.md` did not exist.  This rewrite
+does not pretend otherwise.
 
-License
-This project is licensed under the MIT License - see the LICENSE file for details.
+---
 
-Disclaimer
-This project is provided for educational purposes only. Users are solely responsible for ensuring compliance with local laws and regulations. The authors assume no liability for misuse of this technology.
-Remember: Great power comes with great responsibility. Use ethically!
+## Measurement principle
+
+A hammer tap injects broadband energy into the slab.  The slab responds with a
+sum of decaying bending modes:
+
+```text
+v(t) = Σ A_i · exp(-ζ_i ω_i t) · sin(ω_i √(1-ζ_i²) t + φ_i)
+```
+
+A crack, void or delamination changes the local stiffness and/or dissipation,
+which appears as:
+
+- a downward shift of one or more modal frequencies (reduced stiffness);
+- an increase in modal damping (energy dissipated at the defect);
+- mode splitting (symmetry breaking);
+- a new low-frequency mode for a delaminated layer;
+- changed high-frequency energy ratio and spectral centroid.
+
+The classifier compares the measured modes and scalar features with a reference
+profile measured on a pristine slab of the same geometry and support condition.
+It is a **relative** method: the same slab, sensor position and boundary
+conditions are essential for a meaningful comparison.
+
+Granite is diffuse and only weakly reflective.  A single photodiode with a
+knife-edge or a bicell/PSD detector is more practical than a Michelson
+interferometer.  A small retroreflective marker at the measurement point
+dramatically improves SNR.  This is discussed in
+[`docs/hardware.md`](docs/hardware.md).
+
+---
+
+## Safety and limitations
+
+- **Laser safety:** use the lowest power that gives adequate SNR, never aim at
+  people, vehicles, aircraft or reflective surfaces that can send the beam
+  elsewhere, and wear appropriate goggles.  A 650 nm module in the 1–5 mW class
+  is not a toy.
+- **Not a certified inspection.** The classifier is a research/educational
+  tool.  It must not be used as the sole basis for structural acceptance,
+  safety-critical decisions or commercial quality release.
+- **Granite is difficult.** Speckle, surface finish, ambient light, thermal
+  drift and support conditions can dominate the measurement.  The digital twin
+  is optimistic compared with a real diffuse slab.
+- **Boundary conditions matter.** A slab resting on foam, suspended on wires,
+  or clamped will have different modes.  The reference and the test capture must
+  use the same support.
+- **Firmware is untested on hardware.** The host and twin are tested; the
+  firmware needs a bring-up session with the actual board and ADC.
+
+---
+
+## Credits
+
+The original educational laser-microphone project was created by **Tommy Tal**
+and **Zion Swissa** (`ByteWhiz/laser-mic-esp32`) and is MIT-licensed.  This
+rewrite keeps the physical concept, replaces the acquisition/transport/analysis
+chain, and adds a digital twin and a full host pipeline.
+
+## License
+
+MIT.  See [`LICENSE`](LICENSE).

@@ -1,0 +1,33 @@
+[package]
+name = "granite-firmware"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+publish = false
+
+# This crate is intentionally a standalone workspace: it needs the Xtensa
+# ESP-IDF toolchain and must not be pulled into `cargo test --workspace`.
+[workspace]
+
+[[bin]]
+name = "granite-firmware"
+path = "src/main.rs"
+harness = false
+
+[dependencies]
+anyhow = "1"
+esp-idf-svc = { version = "0.53", features = ["binstart"] }
+granite-protocol = { path = "../../crates/granite-protocol" }
+log = "0.4"
+
+[build-dependencies]
+embuild = "0.33.5"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+
+[profile.dev]
+debug = true
+opt-level = "z"

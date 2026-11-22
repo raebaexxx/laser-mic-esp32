@@ -1,0 +1,30 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/granite-protocol",
+    "crates/granite-core",
+    "crates/granite-sim",
+    "crates/granite-host",
+]
+default-members = [
+    "crates/granite-protocol",
+    "crates/granite-core",
+    "crates/granite-sim",
+    "crates/granite-host",
+]
+exclude = ["firmware/granite-firmware"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+license = "MIT"
+repository = "https://github.com/raebaexxx/laser-mic-esp32"
+
+[workspace.dependencies]
+granite-protocol = { path = "crates/granite-protocol" }
+granite-core = { path = "crates/granite-core" }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

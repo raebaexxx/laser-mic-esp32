@@ -1,15 +1,27 @@
-Category,Part,Example Value/Model,Qty,Notes
-Photodiode,BPW34 or OPT101,BPW34,1,Fast PIN photodiode
-OpAmp,TL072 or OPA2134,TL072,1,Low-noise JFET input dual op-amp
-Feedback Resistor,Rf,1M,1,Sets TIA gain
-Feedback Capacitor,Cf,10pF,1,Stability for TIA
-Filter,High-pass C (series),1uF,1,Coupling
-Filter,High-pass R (to GND),100k,1,Set HPF cutoff
-Filter,Low-pass R (series),3.3k,1,Set LPF cutoff
-Filter,Low-pass C (to GND),10nF,1,Set LPF cutoff (~4.8 kHz with 3.3k)
-Bias Divider,Rbias1,100k,1,To 3.3V
-Bias Divider,Rbias2,100k,1,To GND -> ~1.65V
-ESP32,DevKit (WROOM-32),ESP32-DevKitC/DOIT,1,Use ADC1 GPIO34
-Laser,Red Laser Module,650nm 3-5V 1-5mW,1,Low power, focusable
-Misc,Audio Jack 3.5mm,Stereo or mono,1,Optional line-out
-Misc,Power rails,5V & 3.3V,1,ESP32 via USB; OpAmp via 5-9V depending on part
+Category,Part,Example,Quantity,Est_USD,Notes
+MCU,ESP32 dev board,ESP32-DevKitC WROOM-32,1,10,Original board family; classic ESP32 is Xtensa
+ADC,24-bit I2S ADC,PCM1808 breakout,1,8,48 kHz stereo; left channel used
+Optics,Photodiode,BPW34,2,3,Fast PIN; pair for a bicell/knife-edge option
+Analog,Low-noise op-amp,OPA2134PA,2,8,TIA and gain stage; OPA1642 is an alternative
+Analog,Fast op-amp (optional),OPA657,1,12,Only if more TIA bandwidth is needed
+Analog,Feedback resistor,100 kOhm 1% metal film,4,1,Rf for the TIA
+Analog,Feedback capacitor,4.7 pF C0G,4,1,Cf for stability
+Analog,AC coupling capacitor,1 uF film,4,2,ADC input coupling
+Analog,Decoupling capacitor,100 nF X7R,10,1,Close to every IC
+Analog,Bulk capacitor,10 uF / 100 uF,6,2,Rails and ADC
+Analog,Anti-alias filter parts,Resistor/capacitor kit,1,8,4th-order 20 kHz low-pass
+Analog,Quiet 3.3 V LDO,LP5907 or TPS7A20,1,3,Analog/digital separation
+Analog,Ferrite bead,600 Ohm @ 100 MHz,2,1,Power filtering
+Laser,650 nm laser module,1-5 mW focusable,1,8,Use the lowest power that works
+Safety,Laser safety goggles,650 nm OD 4+,1,20,Required for alignment
+Optics,Retroreflective tape,Glass-bead tape,1,5,Improves SNR on diffuse granite
+Optics,Iris/aperture,Adjustable iris,1,10,Reject ambient light
+Optics,Optical mount,Tripod/breadboard + posts,1,30,Rigid laser and detector mount
+Cabling,Shielded cable,BNC/SMA or shielded twisted pair,2,8,Photodiode to TIA
+Power,5 V supply,USB power bank or bench supply,1,15,Clean analog rail preferred
+PCB,Prototype board,Perfboard or custom PCB,1,5,Keep analog section compact
+Enclosure,Project box,Shielded plastic/metal,1,10,ESP32 antenna outside metal box
+Tap,Hammer,Plastic/brass tip,1,10,Repeatable tap energy
+Calibration,Accelerometer (optional),ADXL335 or piezo disc,1,8,Reference for modal comparison
+Calibration,Force sensor (optional),FSR or load cell,1,8,Tap repeatability
+Misc,Headers/jumpers/fuse,Assorted,1,8,Assembly consumables

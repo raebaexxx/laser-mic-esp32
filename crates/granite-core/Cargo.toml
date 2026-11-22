@@ -1,0 +1,11 @@
+[package]
+name = "granite-core"
+description = "Signal processing, modal analysis, classification and reporting for granite impact NDT"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+granite-protocol.workspace = true

@@ -1,0 +1,10 @@
+[package]
+name = "granite-protocol"
+description = "Wire protocol for the granite slab laser-vibrometer NDT system"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.82"
+license = "MIT"
+repository = "https://github.com/raebaexxx/laser-mic-esp32"
+
+[dependencies]

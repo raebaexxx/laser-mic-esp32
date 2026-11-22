@@ -1,0 +1,20 @@
+[package]
+name = "granite-sim"
+description = "Physics-inspired digital twin for granite impact-modal NDT"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "granite_sim"
+path = "src/lib.rs"
+
+[[bin]]
+name = "granite-twin"
+path = "src/bin/granite-twin.rs"
+
+[dependencies]
+granite-protocol.workspace = true
+granite-core.workspace = true

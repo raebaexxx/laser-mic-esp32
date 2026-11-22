@@ -1,10 +1,14 @@
-# Arduino / ESP32
-*.ino.cpp
-*.elf
-*.bin
-*.map
-build/
-.pio/
-.vscode/
+/target
+**/target
+/out
+*.wav
+*.csv
+!bom/*.csv
+*.html
+!docs/**/*.html
 .DS_Store
-__pycache__/
+.firmware-target
+firmware/granite-firmware/sdkconfig
+firmware/granite-firmware/sdkconfig.old
+firmware/granite-firmware/.embuild
+firmware/granite-firmware/.espressif

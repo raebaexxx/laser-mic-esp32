@@ -1,0 +1,20 @@
+[package]
+name = "granite-host"
+description = "UDP receiver, analysis host and report generator for granite NDT"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "granite_host"
+path = "src/lib.rs"
+
+[[bin]]
+name = "granite-host"
+path = "src/bin/granite-host.rs"
+
+[dependencies]
+granite-protocol.workspace = true
+granite-core.workspace = true
