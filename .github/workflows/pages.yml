@@ -38,8 +38,8 @@ jobs:
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <meta http-equiv="refresh" content="0; url=suite/lab.html">
           <title>Granite Lab</title>
-          <p><a href="suite/lab.html">Open the interactive Granite Lab</a></p>
-          <p><a href="suite/showcase.html">Open the multi-scenario dashboard</a></p>
+          <p><a href="suite/lab.html">Открыть интерактивную лабораторию</a></p>
+          <p><a href="suite/showcase.html">Открыть панель со всеми сценариями</a></p>
           EOF
 
       - name: Configure Pages

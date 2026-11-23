@@ -26,8 +26,8 @@ transport, analysis and reporting chain end-to-end.
 > **По-русски:** краткое объяснение сути и принципа работы — в
 > [`docs/overview.ru.md`](docs/overview.ru.md).
 
-**Live 3D demo:** [raebaexxx.github.io/laser-mic-esp32](https://raebaexxx.github.io/laser-mic-esp32/)
-— the interactive rig, straight from a phone browser.
+**Живая 3D-демонстрация:** [raebaexxx.github.io/laser-mic-esp32](https://raebaexxx.github.io/laser-mic-esp32/)
+— интерактивная установка прямо в браузере телефона.
 
 ---
 

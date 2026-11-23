@@ -58,12 +58,17 @@ pub struct LabScene {
 }
 
 /// Build the payload for one finished scenario run.
+///
+/// The laboratory view is Russian-first, so the human-readable scenario text is
+/// localised here.  The machine identifiers, condition labels and all numeric
+/// values are left untouched for the reports and the CLI.
 pub fn scene_from_run(run: &ScenarioRun) -> LabScene {
     let stats = run.capture.stats.as_ref();
+    let id = run.scenario.id.as_str();
     LabScene {
         id: run.scenario.id.clone(),
-        title: run.scenario.title.clone(),
-        description: run.scenario.description.clone(),
+        title: localized_title(id).to_string(),
+        description: localized_description(id).to_string(),
         expected: run.scenario.expected.label().to_string(),
         predicted: run.assessment.condition.label().to_string(),
         condition_class: run.assessment.condition.css_class().to_string(),
@@ -78,8 +83,13 @@ pub fn scene_from_run(run: &ScenarioRun) -> LabScene {
             .map(|stats| stats.packet_loss_fraction())
             .unwrap_or(0.0),
         jitter_ms: stats.map(|stats| stats.max_jitter_ms).unwrap_or(0.0),
-        flags: run.assessment.flags.clone(),
-        truth: run.truth.description.clone(),
+        flags: run
+            .assessment
+            .flags
+            .iter()
+            .map(|flag| translate_flag(flag))
+            .collect(),
+        truth: localized_truth(id).to_string(),
         material: run.scenario.material.name.to_string(),
         length_mm: run.scenario.geometry.length_m * 1000.0,
         width_mm: run.scenario.geometry.width_m * 1000.0,
@@ -96,6 +106,150 @@ pub fn scene_from_run(run: &ScenarioRun) -> LabScene {
                 persistence: mode.persistence,
             })
             .collect(),
+    }
+}
+
+fn localized_title(id: &str) -> &'static str {
+    match id {
+        "healthy" => "Целая гранитная плита",
+        "healthy-noisy" => "Целая плита, шумный лазерный отклик",
+        "lossy-link" => "Целая плита, перегруженный Wi-Fi",
+        "crack" => "Поверхностная трещина",
+        "delamination" => "Расслоение у поверхности",
+        "void" => "Внутренняя пустота",
+        "thickness-plus" => "Плита толще эталона",
+        "overloaded" => "Перегрузка АЦП",
+        _ => "Сценарий цифрового двойника",
+    }
+}
+
+fn localized_description(id: &str) -> &'static str {
+    match id {
+        "healthy" => {
+            "Номинальная плита 600 × 400 × 20 мм, три удара молотком, чистый UDP-канал и лазерный виброметр с SNR 38 дБ."
+        }
+        "healthy-noisy" => {
+            "Здоровая плита с рассеивающей поверхностью гранита: SNR 22 дБ, 1/f-шум, наводки сети и лёгкие потери пакетов."
+        }
+        "lossy-link" => {
+            "Здоровая плита при 3% потерь пакетов, джиттере 4 мс и перестановке; сборщик должен сохранить оценку мод."
+        }
+        "crack" => {
+            "Трещина с выраженностью 55% снижает изгибную жёсткость примерно на 3%, втрое увеличивает затухание и расщепляет низшие моды."
+        }
+        "delamination" => {
+            "Расслоение с выраженностью 70% добавляет низкочастотную моду слоя около 120 Гц и нарушает симметрию мод."
+        }
+        "void" => {
+            "Внутренняя пустота с выраженностью 75% снижает эффективную жёсткость и примерно вдвое увеличивает затухание без сильного расщепления мод."
+        }
+        "thickness-plus" => {
+            "Плита примерно на 3% толще эталонной: трещины нет, но все моды систематически выше."
+        }
+        "overloaded" => {
+            "Здоровая плита, но усиление приёмника слишком велико: сильные удары обрезаются, появляются гармоники."
+        }
+        _ => "Сценарий цифрового двойника гранитной плиты.",
+    }
+}
+
+fn localized_truth(id: &str) -> &'static str {
+    match id {
+        "crack" => {
+            "Поверхностная трещина снижает локальную изгибную жёсткость, увеличивает затухание и расщепляет близко стоящие моды."
+        }
+        "delamination" => {
+            "Расслоение у поверхности добавляет низкочастотную моду слоя и нарушает симметрию мод."
+        }
+        "void" => {
+            "Внутренняя пустота снижает эффективную жёсткость и увеличивает затухание мод."
+        }
+        "thickness-plus" => {
+            "Плита толще эталонной, поэтому все моды смещены вверх без роста затухания."
+        }
+        "overloaded" => "Дефекта нет; проблема в перегрузке входного тракта, а не в плите.",
+        _ => "Без дефекта; эталонная плита.",
+    }
+}
+
+fn translate_flag(flag: &str) -> String {
+    if flag == "all modal features within the reference envelope" {
+        return "все модальные признаки в пределах эталона".to_string();
+    }
+    if let Some(rest) = flag.strip_prefix("damping increased ") {
+        if let Some((value, _)) = rest.split_once('x') {
+            return format!("затухание выросло в {value} раза относительно эталона");
+        }
+    }
+    if let Some(rest) = flag.strip_prefix("unexpected mode at ") {
+        if let Some((frequency, tail)) = rest.split_once(" Hz (persistence ") {
+            let persistence = tail.trim_end_matches("%)");
+            return format!("неожиданная мода на {frequency} Гц (устойчивость {persistence}%)");
+        }
+    }
+    if let Some(rest) = flag.strip_prefix("closely spaced modes detected (splitting score ") {
+        if let Some(score) = rest.strip_suffix(')') {
+            return format!("обнаружены близко стоящие моды (коэффициент расщепления {score})");
+        }
+    }
+    if let Some(rest) = flag.strip_prefix("reference mode at ") {
+        if let Some(frequency) = rest.strip_suffix(" Hz was not found") {
+            return format!("мода эталона на {frequency} Гц не найдена");
+        }
+    }
+    if let Some(rest) = flag.strip_prefix("modal frequencies shifted ") {
+        if let Some((value, direction)) = rest.split_once('%') {
+            let direction = match direction.trim() {
+                "downward" => "вниз",
+                "upward" => "вверх",
+                other => other,
+            };
+            return format!("частоты мод сместились на {value}% {direction}");
+        }
+    }
+    if let Some(rest) = flag.strip_prefix("low-frequency mode at ") {
+        if let Some((frequency, tail)) = rest.split_once(" Hz (reference fundamental ") {
+            let reference = tail.trim_end_matches(" Hz)");
+            return format!(
+                "низкочастотная мода на {frequency} Гц (основная мода эталона {reference} Гц)"
+            );
+        }
+    }
+    if let Some(warning) = flag.strip_prefix("data quality: ") {
+        return format!("качество данных: {}", translate_warning(warning));
+    }
+    flag.to_string()
+}
+
+fn translate_warning(warning: &str) -> String {
+    match warning {
+        "spectrum is empty" => "спектр пуст".to_string(),
+        "no impact events detected; check trigger threshold, sensor coupling or gain" => {
+            "удары не обнаружены; проверьте порог триггера, крепление датчика или усиление"
+                .to_string()
+        }
+        _ => {
+            if let Some(rest) = warning.strip_prefix("clipping detected (") {
+                if let Some((value, _)) = rest.split_once("% of samples at full scale)") {
+                    return format!(
+                        "обнаружено ограничение сигнала ({value}% отсчётов на полной шкале)"
+                    );
+                }
+            }
+            if let Some(rest) = warning.strip_prefix("packet loss created gaps in ") {
+                if let Some((value, _)) = rest.split_once("% of the capture") {
+                    return format!("потери пакетов создали разрывы в {value}% записи");
+                }
+            }
+            if let Some(rest) = warning.strip_prefix("low trigger SNR (") {
+                if let Some((value, _)) = rest.split_once(" dB)") {
+                    return format!(
+                        "низкий SNR триггера ({value} дБ); оценки затухания могут быть ненадёжны"
+                    );
+                }
+            }
+            warning.to_string()
+        }
     }
 }
 
@@ -120,7 +274,7 @@ pub fn write_lab(runs: &[ScenarioRun], path: &Path) -> io::Result<()> {
 pub fn render_lab_html(scenes: &[LabScene], selected: &str, seed: u64) -> String {
     let mut html = String::with_capacity(180 * 1024);
     html.push_str(
-        "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Granite Lab — impact-modal NDT</title><style>",
+        "<!doctype html><html lang=\"ru\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Лаборатория гранита — ударно-модальный НК</title><style>",
     );
     html.push_str(LAB_CSS);
     html.push_str("</style></head><body>");
@@ -316,6 +470,7 @@ button.primary:hover { filter: brightness(1.06); }
 .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 10px; margin-bottom: 10px; }
 .stat b { display: block; font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .stat span { display: block; margin-top: 1px; font-size: 8px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+.stat span.sym { text-transform: none; letter-spacing: .04em; }
 .modes { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 10px; }
 .mode { padding: 3px 7px; border-radius: 99px; font-size: 8.5px; color: #b9cbe0; }
 .mode b { color: var(--ink); font-size: 9px; margin-right: 2px; }
@@ -395,24 +550,24 @@ button.primary:hover { filter: brightness(1.06); }
 "##;
 
 const LAB_BODY: &str = r##"
-<canvas id="scene" aria-label="Interactive 3D granite NDT laboratory"></canvas>
+<canvas id="scene" aria-label="Интерактивная 3D-лаборатория ударно-модального неразрушающего контроля"></canvas>
 <div class="scanlines" aria-hidden="true"></div>
 <header class="topbar">
   <div class="brand">
     <span class="pulse">●</span>
-    <div><strong>GRANITE LAB</strong><span class="brand-sub">impact-modal NDT · digital twin</span></div>
+    <div><strong>ЛАБОРАТОРИЯ ГРАНИТА</strong><span class="brand-sub">ударно-модальный НК · цифровой двойник</span></div>
   </div>
-  <div class="viewbar" role="group" aria-label="camera views">
-    <button type="button" class="chip view active" data-view="overview">Overview</button>
-    <button type="button" class="chip view" data-view="plate">Slab</button>
-    <button type="button" class="chip view" data-view="sensor">Sensor</button>
+  <div class="viewbar" role="group" aria-label="ракурсы камеры">
+    <button type="button" class="chip view active" data-view="overview">Обзор</button>
+    <button type="button" class="chip view" data-view="plate">Плита</button>
+    <button type="button" class="chip view" data-view="sensor">Датчик</button>
     <span style="width:1px;height:18px;background:var(--line);margin:0 3px"></span>
-    <button type="button" class="chip" id="zoom-in" title="zoom in">＋</button>
-    <button type="button" class="chip" id="zoom-out" title="zoom out">－</button>
+    <button type="button" class="chip" id="zoom-in" title="приблизить">＋</button>
+    <button type="button" class="chip" id="zoom-out" title="отдалить">－</button>
   </div>
 </header>
 <aside class="panel" id="panel">
-  <div class="eyebrow">Loaded slab</div>
+  <div class="eyebrow">Выбранная плита</div>
   <h1 id="p-title">—</h1>
   <p class="lede" id="p-lede"></p>
   <div class="verdict-row">
@@ -421,31 +576,31 @@ const LAB_BODY: &str = r##"
     <span class="score-cap" id="p-conf">/100</span>
   </div>
   <div class="gauge"><div id="p-gauge"></div><i style="left:30%"></i><i style="left:55%"></i></div>
-  <div class="gauge-cap"><span>healthy</span><span>suspect</span><span>defect</span></div>
+  <div class="gauge-cap"><span>норма</span><span>подозрительно</span><span>дефект</span></div>
   <div class="stats" id="p-stats"></div>
   <div class="modes" id="p-modes"></div>
-  <div class="flags"><div class="eyebrow">Why</div><ul id="p-flags"></ul></div>
+  <div class="flags"><div class="eyebrow">Почему</div><ul id="p-flags"></ul></div>
   <div class="truth" id="p-truth"></div>
-  <div class="fine">Plate deflection is exaggerated ×~40 and the oscillation is slowed; modal frequencies, damping and the verdict come from the Rust analysis of this capture.</div>
+  <div class="fine">Прогиб плиты усилен примерно в 40 раз, а колебания замедлены; частоты, затухание и вердикт берутся из Rust-анализа этого сигнала.</div>
 </aside>
 <footer class="dock">
   <div class="dock-head">
-    <span class="eyebrow">Slab library · click a tile in the scene or here</span>
-    <span class="live-note" id="live-note">tap 1 · 0.00 s</span>
+    <span class="eyebrow">Библиотека плит · нажмите на плиту в сцене или здесь</span>
+    <span class="live-note" id="live-note">удар 1 · 0.00 с</span>
   </div>
   <div class="slab-strip" id="slab-strip"></div>
   <div class="transport">
-    <button type="button" id="tap" class="primary">⚡ Tap now</button>
-    <button type="button" id="play">⏸ Pause</button>
-    <select id="speed" aria-label="speed">
+    <button type="button" id="tap" class="primary">⚡ Ударить</button>
+    <button type="button" id="play">⏸ Пауза</button>
+    <select id="speed" aria-label="скорость">
       <option value="0.5">0.5×</option>
       <option value="1" selected>1×</option>
       <option value="2">2×</option>
     </select>
-    <button type="button" id="sound" title="enable sound">🔇</button>
-    <button type="button" id="labels" aria-pressed="true">Labels</button>
-    <button type="button" id="reset">↺ View</button>
-    <span class="hint">drag to orbit · wheel zoom · click a slab to load · click the plate to tap · <kbd>space</kbd> pause</span>
+    <button type="button" id="sound" title="включить звук">🔇</button>
+    <button type="button" id="labels" aria-pressed="true">Метки</button>
+    <button type="button" id="reset">↺ Обзор</button>
+    <span class="hint">тяните — орбита · колесо — масштаб · клик по плите — выбрать · клик по плите на столе — удар · <kbd>пробел</kbd> — пауза</span>
   </div>
 </footer>
 <div class="tooltip" id="tooltip" hidden></div>
@@ -473,7 +628,9 @@ let current = null, vib = [];
 let last = 0, lastHud = 0;
 const DEFLECT = 18;
 const SHAPES = [[1, 1], [2, 1], [1, 2], [2, 2], [3, 1], [1, 3], [3, 2], [2, 3], [3, 3], [4, 1], [4, 2], [2, 4]];
-const SHORT = { healthy: 'healthy', 'healthy-noisy': 'noisy', 'lossy-link': 'lossy', crack: 'crack', delamination: 'delam', void: 'void', 'thickness-plus': 'thick+', overloaded: 'overload' };
+const SHORT = { healthy: 'целая', 'healthy-noisy': 'шум', 'lossy-link': 'потери', crack: 'трещина', delamination: 'расслоение', void: 'пустота', 'thickness-plus': 'толщ.+', overloaded: 'перегруз' };
+const RU_CONDITION = { HEALTHY: 'ЗДОРОВА', SUSPECT: 'ПОДОЗРИТЕЛЬНА', DEFECT: 'ДЕФЕКТ', UNKNOWN: 'НЕИЗВЕСТНО' };
+function ruCondition(value) { return RU_CONDITION[value] || value; }
 
 const cam = { yaw: -1.15, pitch: 0.36, dist: 268, tx: 2, ty: 12, tz: 60 };
 const goal = { yaw: cam.yaw, pitch: cam.pitch, dist: cam.dist, tx: cam.tx, ty: cam.ty, tz: cam.tz };
@@ -761,7 +918,7 @@ function drawRack() {
   box(0, 92, 68, 124, 8, 2, steel);
   box(0, 92, 86, 124, 8, 2, steel);
   box(0, 92, 104, 124, 8, 2, steel);
-  labels.push({ p: [0, 92, 113], text: 'SLAB LIBRARY · click a tile', color: '#7d93ae', small: true });
+  labels.push({ p: [0, 92, 113], text: 'БИБЛИОТЕКА ПЛИТ · нажмите на плиту', color: '#7d93ae', small: true });
 
   scenes.forEach((scene, index) => {
     const col = index % 4;
@@ -822,12 +979,12 @@ function drawRig() {
   const led = project([-48, -26, 84]);
   if (led) overlay.push(() => glowDot(led[0], led[1], 2.4, '#ef476f', 10));
 
-  labels.push({ p: [-56, -30, 95], text: 'laser + photodiode', color: '#ef476f' });
+  labels.push({ p: [-56, -30, 95], text: 'лазер + фотодиод', color: '#ef476f' });
 
   // --- transimpedance amplifier + anti-alias filter
   box(-44, 18, 52, 14, 10, 4, [38, 44, 56], 'rgba(140, 180, 210, .14)');
   box(-50, 18, 56, 3, 3, 2, [176, 182, 192]);
-  labels.push({ p: [-44, 18, 61], text: 'TIA + filter', color: '#8fa6c4', small: true });
+  labels.push({ p: [-44, 18, 61], text: 'TIA + фильтр', color: '#8fa6c4', small: true });
 
   // --- solenoid tapper gantry
   box(-46, 40, 52, 5, 5, 58, [46, 52, 64]);
@@ -849,7 +1006,7 @@ function drawRig() {
       glowDot(espLed[0], espLed[1], 1.6 + on, 'rgba(76, 201, 240, ' + (0.35 + on * 0.6) + ')', 8);
     });
   }
-  labels.push({ p: [-26, 45, 58], text: 'ADC · PCM1808', color: '#06d6a0' });
+  labels.push({ p: [-26, 45, 58], text: 'АЦП · PCM1808', color: '#06d6a0' });
   labels.push({ p: [10, 45, 58], text: 'ESP32 · UDP', color: '#4cc9f0' });
 
   // --- laptop
@@ -858,7 +1015,7 @@ function drawRig() {
   qface([SCREEN.bl, SCREEN.br, SCREEN.tr, SCREEN.tl], '#081521', '#2a4058', 1.2);
   qface([SCREEN.bl, SCREEN.br, [SCREEN.br[0], SCREEN.br[1] + 1.6, SCREEN.br[2]],
     [SCREEN.bl[0], SCREEN.bl[1] + 1.6, SCREEN.bl[2]]], '#0e1c2c', null);
-  labels.push({ p: [60, 16, 57], text: 'analysis PC', color: '#4cc9f0' });
+  labels.push({ p: [60, 16, 57], text: 'ПК · анализ', color: '#4cc9f0' });
 
   // --- cables
   cable([-56, -28, 53], [-60, -2, 54], [-52, 18, 53], '#1b2635');
@@ -980,7 +1137,7 @@ function drawPlate() {
     qdot([-32 + 64 * u, -22 + 44 * v, surfaceZ(u, v, state.clock) + 0.05],
       0.28, 'rgba(226, 238, 250, .30)');
   });
-  labels.push({ p: [-39, -26, 61], text: 'granite slab', color: '#9fe8ff', small: true });
+  labels.push({ p: [-39, -26, 61], text: 'гранитная плита', color: '#9fe8ff', small: true });
 
   const dt = state.clock - state.tapAt;
   if (dt >= 0 && dt < 0.55) {
@@ -1104,12 +1261,12 @@ function drawScreen() {
   ctx.fillStyle = '#9fe8ff';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  ctx.fillText(small ? 'LIVE' : 'GRANITE NDT · LIVE', title[0], title[1]);
+  ctx.fillText(small ? 'НК' : 'ГРАНИТ · НК · ЭФИР', title[0], title[1]);
   const foot = bil(0.08, 0.14);
   ctx.font = '600 ' + clamp(screenWidth * 0.068, 6, 8).toFixed(1) + 'px ui-monospace, SFMono-Regular, Menlo, monospace';
   ctx.fillStyle = current ? (current.condition_class === 'defect' ? '#ff8fa5' :
     current.condition_class === 'suspect' ? '#ffd166' : '#7ef0cb') : '#7d93ae';
-  ctx.fillText(current ? (small ? current.predicted : current.predicted + ' · ' + current.score.toFixed(1)) : '', foot[0], foot[1]);
+  ctx.fillText(current ? (small ? ruCondition(current.predicted) : ruCondition(current.predicted) + ' · ' + current.score.toFixed(1)) : '', foot[0], foot[1]);
   ctx.restore();
 }
 
@@ -1198,7 +1355,7 @@ function frame(now) {
   if (now - lastHud > 120) {
     lastHud = now;
     const dtTap = Math.max(0, state.clock - state.tapAt);
-    ui.live.textContent = 'tap ' + state.taps + ' · ' + (state.clock - state.tapAt >= 0 ? dtTap.toFixed(2) + ' s after impact' : 'tapping…');
+    ui.live.textContent = 'удар ' + state.taps + ' · ' + (state.clock - state.tapAt >= 0 ? dtTap.toFixed(2) + ' с после удара' : 'удар…');
   }
   requestAnimationFrame(frame);
 }
@@ -1213,29 +1370,29 @@ function renderPanel() {
   if (!s) return;
   ui.title.textContent = s.title;
   ui.lede.textContent = s.description;
-  ui.badge.textContent = s.predicted;
+  ui.badge.textContent = ruCondition(s.predicted);
   ui.badge.className = 'badge ' + s.condition_class;
   ui.score.textContent = fmt(s.score, 1);
-  ui.conf.textContent = '/100 · conf ' + Math.round(s.confidence * 100) + '%';
+  ui.conf.textContent = '/100 · доверие ' + Math.round(s.confidence * 100) + '%';
   ui.gauge.style.width = clamp(s.score, 0, 100) + '%';
   ui.gauge.style.background = s.condition_class === 'defect' ? 'linear-gradient(90deg,#ff8fa5,#ef476f)' :
     s.condition_class === 'suspect' ? 'linear-gradient(90deg,#ffd166,#ffb703)' :
     'linear-gradient(90deg,#06d6a0,#4cc9f0)';
   const rows = [
-    ['f₁', fmt(s.f1, 1) + ' Hz'],
-    ['ζ mean', fmt(s.damping, 5)],
-    ['T60', fmt(s.t60, 2) + ' s'],
-    ['modes · taps', s.mode_count + ' · ' + s.event_count],
-    ['link loss', fmt(s.loss * 100, 2) + '%'],
-    ['slab, mm', Math.round(s.length_mm) + '×' + Math.round(s.width_mm) + '×' + Math.round(s.thickness_mm)]
+    ['f₁', fmt(s.f1, 1) + ' Гц'],
+    ['затухание', fmt(s.damping, 5)],
+    ['T60', fmt(s.t60, 2) + ' с'],
+    ['моды · удары', s.mode_count + ' · ' + s.event_count],
+    ['потери связи', fmt(s.loss * 100, 2) + '%'],
+    ['плита, мм', Math.round(s.length_mm) + '×' + Math.round(s.width_mm) + '×' + Math.round(s.thickness_mm)]
   ];
   ui.stats.innerHTML = rows.map(([key, value]) =>
-    '<div class="stat"><b>' + value + '</b><span>' + key + '</span></div>').join('');
+    '<div class="stat"><b>' + value + '</b><span' + (key === 'f₁' ? ' class="sym"' : '') + '>' + key + '</span></div>').join('');
   const flags = s.flags.slice(0, 3);
   ui.flags.innerHTML = '';
   if (!flags.length) {
     const li = document.createElement('li');
-    li.textContent = 'all modal features within the reference envelope';
+    li.textContent = 'все модальные признаки в пределах эталона';
     ui.flags.appendChild(li);
   } else {
     for (const flag of flags) {
@@ -1245,8 +1402,8 @@ function renderPanel() {
     }
   }
   const expectedClass = s.expected.toLowerCase();
-  ui.truth.innerHTML = 'Expected <b class="' + expectedClass + '">' + s.expected +
-    '</b> · predicted <b class="' + s.condition_class + '">' + s.predicted +
+  ui.truth.innerHTML = 'Ожидалось <b class="' + expectedClass + '">' + ruCondition(s.expected) +
+    '</b> · предсказано <b class="' + s.condition_class + '">' + ruCondition(s.predicted) +
     '</b><br>' + escapeHtml(s.truth);
   renderModes();
   updateStrip();
@@ -1265,8 +1422,8 @@ function renderModes() {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'mode';
-    button.innerHTML = '<b>M' + (index + 1) + '</b>' + fmt(mode.frequency_hz, 0) + ' Hz';
-    button.title = 'solo this mode shape';
+    button.innerHTML = '<b>M' + (index + 1) + '</b>' + fmt(mode.frequency_hz, 0) + ' Гц';
+    button.title = 'показать только эту моду';
     button.addEventListener('click', () => {
       state.solo = state.solo === index ? -1 : index;
       updateModeChips();
@@ -1311,7 +1468,7 @@ function buildChrome() {
     button.type = 'button';
     button.className = 'slab ' + scene.condition_class;
     button.dataset.id = scene.id;
-    button.title = scene.title + ' — expected ' + scene.expected;
+    button.title = scene.title + ' — ожидалось ' + ruCondition(scene.expected);
     button.innerHTML = '<span class="dot"></span><b>' + escapeHtml(SHORT[scene.id] || scene.id) + '</b><em>' +
       fmt(scene.score, 0) + '</em>';
     button.addEventListener('click', () => selectScene(scene.id));
@@ -1321,7 +1478,7 @@ function buildChrome() {
 
 function setPlaying(playing) {
   state.playing = playing;
-  ui.play.textContent = playing ? '⏸ Pause' : '▶ Play';
+  ui.play.textContent = playing ? '⏸ Пауза' : '▶ Пуск';
 }
 
 function applyView(name) {
@@ -1406,8 +1563,8 @@ function pickRack(x, y) {
 
 function showTooltip(scene, x, y) {
   ui.tooltip.hidden = false;
-  ui.tooltip.innerHTML = '<b>' + escapeHtml(scene.id) + '</b> · ' + escapeHtml(scene.title) +
-    '\n' + scene.predicted + ' · anomaly ' + fmt(scene.score, 1) + '/100 · f₁ ' + fmt(scene.f1, 1) + ' Hz';
+  ui.tooltip.innerHTML = '<b>' + escapeHtml(scene.title) + '</b>' +
+    '\n' + ruCondition(scene.predicted) + ' · аномалия ' + fmt(scene.score, 1) + '/100 · f₁ ' + fmt(scene.f1, 1) + ' Гц';
   const width = 250;
   ui.tooltip.style.left = Math.min(W - width, x + 16) + 'px';
   ui.tooltip.style.top = Math.min(H - 70, y + 18) + 'px';
@@ -1479,7 +1636,7 @@ ui.speed.addEventListener('change', () => { state.speed = parseFloat(ui.speed.va
 ui.sound.addEventListener('click', () => {
   state.sound = !state.sound;
   ui.sound.textContent = state.sound ? '🔊' : '🔇';
-  ui.sound.title = state.sound ? 'mute audio' : 'enable sound';
+  ui.sound.title = state.sound ? 'выключить звук' : 'включить звук';
   if (state.sound) {
     ensureAudio();
     if (!state.playing) setPlaying(true);
