@@ -745,9 +745,10 @@ function drawBench() {
   box(-76, 54, 0, 8, 8, 47, [20, 25, 34]);
   box(76, 54, 0, 8, 8, 47, [20, 25, 34]);
   box(0, 15, 47, 170, 110, 5, [30, 37, 49], 'rgba(120, 160, 200, .10)');
-  for (const [x, y] of benchSpeckles) {
+  benchSpeckles.forEach(([x, y], index) => {
+    if (W < 760 && index % 2) return;
     qdot([x, y, 52.03], 0.32, 'rgba(150, 178, 206, .24)');
-  }
+  });
   // rubber supports
   box(0, -14, 52, 76, 6, 5, [30, 34, 42]);
   box(0, 14, 52, 76, 6, 5, [30, 34, 42]);
@@ -924,7 +925,8 @@ function surfaceZ(u, v, time) {
 }
 
 function drawPlate() {
-  const NX = 26, NY = 18;
+  const small = W < 760;
+  const NX = small ? 18 : 26, NY = small ? 12 : 18;
   const top = [];
   for (let j = 0; j <= NY; j++) {
     const row = [];
@@ -973,10 +975,11 @@ function drawPlate() {
     const c = top[j][NX], d = top[j + 1][NX];
     qface([[32, c[1], c[2]], [32, d[1], d[2]], [32, d[1], 57], [32, c[1], 57]], shade(side, 0.8), 'rgba(8, 14, 22, .35)', 0.5);
   }
-  for (const [u, v] of plateSpeckles) {
+  plateSpeckles.forEach(([u, v], index) => {
+    if (small && index % 2) return;
     qdot([-32 + 64 * u, -22 + 44 * v, surfaceZ(u, v, state.clock) + 0.05],
       0.28, 'rgba(226, 238, 250, .30)');
-  }
+  });
   labels.push({ p: [-39, -26, 61], text: 'granite slab', color: '#9fe8ff', small: true });
 
   const dt = state.clock - state.tapAt;
