@@ -511,7 +511,7 @@ pub fn render_showcase_html(entries: &[SuiteEntry]) -> String {
     );
     let _ = write!(
         html,
-        "<div class=\"meta\">{} scenarios · {} matched · seed-deterministic · click a scenario to switch</div>",
+        "<div class=\"meta\">{} scenarios · {} matched · click a scenario to switch · <a class=\"lab-link\" href=\"lab.html\">open the 3D lab →</a></div>",
         entries.len(),
         matched
     );
@@ -1323,6 +1323,8 @@ const SHOWCASE_CSS: &str = r##"
 .showcase-links { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 12px; font-size: 12px; }
 .showcase-links a { color: var(--cyan); text-decoration: none; border-bottom: 1px dashed rgba(76, 201, 240, .45); padding-bottom: 1px; }
 .showcase-links a:hover { border-bottom-style: solid; }
+.meta a.lab-link { color: var(--cyan); text-decoration: none; border-bottom: 1px dashed rgba(76, 201, 240, .45); }
+.meta a.lab-link:hover { border-bottom-style: solid; }
 .viewer { min-width: 0; height: 100%; display: flex; flex-direction: column; }
 .viewer-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 0 4px 8px; font-weight: 700; font-size: 13px; }
 #view { flex: 1; width: 100%; min-height: 0; border: 1px solid var(--line); border-radius: 16px; background: #060b14; box-shadow: 0 18px 50px rgba(0, 0, 0, .3); }

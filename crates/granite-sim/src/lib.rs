@@ -14,6 +14,7 @@
 //! ```
 
 pub mod defect;
+pub mod lab;
 pub mod material;
 pub mod network;
 pub mod plate;
@@ -23,6 +24,7 @@ pub mod suite;
 pub mod visual;
 
 pub use defect::{Defect, DefectKind};
+pub use lab::{render_lab_html, scene_from_run, write_lab, LabScene};
 pub use material::{Material, CONCRETE, GRANITE, MARBLE};
 pub use network::{Datagram, NetworkConfig, ReceiveResult};
 pub use plate::{PlateGeometry, PlateMode, PlateModel, Point2};

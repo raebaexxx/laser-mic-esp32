@@ -12,6 +12,7 @@ use granite_core::report::{
 use granite_core::time::{format_unix_utc, now_unix_s};
 use granite_core::wav::write_wav_f32;
 
+use crate::lab::write_lab;
 use crate::scenario::{catalog, run_scenario, Scenario, ScenarioRun};
 use crate::visual::{write_scope, write_showcase};
 
@@ -54,6 +55,7 @@ pub struct SuiteResult {
     pub entries: Vec<SuiteEntry>,
     pub index_path: PathBuf,
     pub showcase_path: PathBuf,
+    pub lab_path: PathBuf,
     pub matched: usize,
 }
 
@@ -196,6 +198,7 @@ pub fn run_suite(
     }
     fs::create_dir_all(&options.output_dir)?;
     let mut entries = Vec::new();
+    let mut runs = Vec::new();
     let mut matched = 0usize;
     for scenario in &scenarios {
         let run = run_scenario(scenario, options.seed).map_err(|error| {
@@ -227,6 +230,7 @@ pub fn run_suite(
         };
         entries.push(entry);
         on_run(&run, &bundle);
+        runs.push(run);
     }
     let index_path = options.output_dir.join("index.html");
     fs::write(
@@ -235,10 +239,13 @@ pub fn run_suite(
     )?;
     let showcase_path = options.output_dir.join("showcase.html");
     write_showcase(&entries, &showcase_path)?;
+    let lab_path = options.output_dir.join("lab.html");
+    write_lab(&runs, &lab_path)?;
     Ok(SuiteResult {
         entries,
         index_path,
         showcase_path,
+        lab_path,
         matched,
     })
 }

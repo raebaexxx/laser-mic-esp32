@@ -526,7 +526,7 @@ pub fn render_suite_html(title: &str, entries: &[SuiteEntry]) -> String {
     );
     let _ = writeln!(
         out,
-        "<header><div class=\"inner\"><h1>{}</h1><p>Digital-twin validation suite. Each row links to a full analysis report and an animated scope. <a href=\"showcase.html\"><strong>Open the interactive showcase →</strong></a></p></div></header><main>",
+        "<header><div class=\"inner\"><h1>{}</h1><p>Digital-twin validation suite. Each row links to a full analysis report and an animated scope. <a href=\"showcase.html\"><strong>Open the interactive showcase →</strong></a> · <a href=\"lab.html\"><strong>Open the 3D rig →</strong></a></p></div></header><main>",
         escape(title)
     );
     let correct = entries

@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use granite_core::classify::Condition;
+use granite_sim::lab::write_lab;
 use granite_sim::scenario::{catalog, find, run_scenario};
 use granite_sim::suite::{format_table, is_match, run_suite, write_bundle, SuiteOptions};
 use granite_sim::visual::write_scope;
@@ -76,6 +77,25 @@ fn run() -> Result<ExitCode, String> {
             println!("scope:  {}", output.display());
             Ok(ExitCode::SUCCESS)
         }
+        "lab" => {
+            let output = flag(&args, "--out")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| PathBuf::from("out/lab.html"));
+            let seed = flag(&args, "--seed")
+                .and_then(|value| value.parse::<u64>().ok())
+                .unwrap_or(0x5eed_1234);
+            let mut runs = Vec::new();
+            for scenario in catalog() {
+                runs.push(run_scenario(&scenario, seed).map_err(|error| error.to_string())?);
+            }
+            write_lab(&runs, &output).map_err(|error| error.to_string())?;
+            println!(
+                "interactive 3D lab: {} ({} scenarios)",
+                output.display(),
+                runs.len()
+            );
+            Ok(ExitCode::SUCCESS)
+        }
         "suite" => {
             let output = flag(&args, "--out")
                 .map(PathBuf::from)
@@ -126,6 +146,7 @@ fn run() -> Result<ExitCode, String> {
                 result.index_path.display()
             );
             println!("interactive showcase: {}", result.showcase_path.display());
+            println!("interactive 3D lab:  {}", result.lab_path.display());
             if result.matched != result.entries.len() {
                 println!(
                     "warning: {} scenario(s) did not match the expected label",
@@ -221,6 +242,7 @@ fn usage() {
          \x20 granite-twin run [--scenario ID] [--seed N] [--out DIR]\n\
          \x20 granite-twin scope [--scenario ID] [--seed N] [--out FILE]\n\
          \x20 granite-twin suite [--out DIR] [--seed N] [--only id1,id2,...]\n\
+         \x20 granite-twin lab [--out FILE] [--seed N]\n\
          \x20 granite-twin selftest\n\
          \n\
          SCENARIOS:\n\
@@ -230,7 +252,8 @@ fn usage() {
          OUTPUT:\n\
          \x20 Each run writes capture.wav, report.html, scope.html, modes.csv,\n\
          \x20 features.csv, events.csv, reference.txt and summary.txt.  `suite`\n\
-         \x20 also writes index.html.  Open scope.html for the animated\n\
-         \x20 oscilloscope/spectrum/packet view with audio playback."
+         \x20 also writes index.html, showcase.html and the interactive 3D\n\
+         \x20 lab.html.  Open lab.html to see the rig and click through the\n\
+         \x20 slabs; scope.html is the single-capture instrument view."
     );
 }

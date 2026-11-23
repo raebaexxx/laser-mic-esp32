@@ -30,7 +30,7 @@ granite-sim  granite-host
 |---|---|---|
 | `granite-protocol` | Header, sample codecs, CRC32, packet validation | none |
 | `granite-core` | Reassembly, DSP, modal analysis, classifier, WAV, HTML report | `granite-protocol` |
-| `granite-sim` | Plate model, defects, sensor/network simulation, scenario suite, animated HTML scope, `granite-twin` CLI | protocol + core |
+| `granite-sim` | Plate model, defects, sensor/network simulation, scenario suite, animated HTML scope, interactive 3D lab, `granite-twin` CLI | protocol + core |
 | `granite-host` | Live UDP receiver, WAV input, reference builder, `granite-host` CLI | protocol + core |
 
 The firmware is intentionally outside this graph and outside the Cargo
@@ -183,6 +183,11 @@ they can be imported into a spreadsheet or a Python notebook.
 - **Animated scope / showcase:** generated after analysis.  The browser only
   replays embedded samples and precomputed analysis; it does not reimplement
   DSP.  `showcase.html` switches between `scope.html` files in an iframe.
+- **3D lab:** a perspective canvas scene generated from the suite runs.  It
+  uses the analysed modal frequencies and damping for the plate animation, but
+  the mode shapes are illustrative and the motion is slowed and exaggerated; it
+  is an explanatory view, not a solver.  `lab.html` embeds only scenario
+  metadata and modal parameters, not the raw captures.
 
 A future real-time display can run the same analysis on a sliding window, but
 the current design deliberately favours reproducibility over latency.

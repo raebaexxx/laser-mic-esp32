@@ -20,10 +20,11 @@ cargo run -q -p granite-host --bin granite-host -- analyze \
   --out "$OUT/host-healthy"
 
 echo
-echo "Open: $OUT/suite/showcase.html     (interactive dashboard)"
+echo "Open: $OUT/suite/lab.html          (interactive 3D rig + slab library)"
+echo "      $OUT/suite/showcase.html      (multi-scenario dashboard)"
 echo "      $OUT/suite/crack/scope.html   (single animated scope + audio)"
 echo "      $OUT/host-healthy/report.html (host analysis report)"
 
 if [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] && command -v xdg-open >/dev/null 2>&1; then
-  xdg-open "$OUT/suite/showcase.html" >/dev/null 2>&1 &
+  xdg-open "$OUT/suite/lab.html" >/dev/null 2>&1 &
 fi

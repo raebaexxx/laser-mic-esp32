@@ -31,7 +31,8 @@ The suite writes `out/suite/index.html` and one directory per scenario.
 Each directory contains `report.html` (static engineering report) and
 `scope.html` (animated waveform, spectrum, packet stream and audio playback).
 `out/suite/showcase.html` is the interactive dashboard that switches between
-all scenarios in one page.
+all scenarios in one page.  `out/suite/lab.html` is the 3D laboratory view of
+the rig with the clickable slab library.
 
 ### Running the host
 

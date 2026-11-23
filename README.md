@@ -26,6 +26,9 @@ transport, analysis and reporting chain end-to-end.
 > **По-русски:** краткое объяснение сути и принципа работы — в
 > [`docs/overview.ru.md`](docs/overview.ru.md).
 
+**Live 3D demo:** [raebaexxx.github.io/laser-mic-esp32](https://raebaexxx.github.io/laser-mic-esp32/)
+— the interactive rig, straight from a phone browser.
+
 ---
 
 ## What works today
@@ -39,6 +42,7 @@ transport, analysis and reporting chain end-to-end.
 | Reference profiles, anomaly scoring, condition labels | Implemented and tested |
 | Self-contained HTML report with inline SVG + BMP spectrogram | Implemented |
 | Animated HTML scope: scrolling waveform, spectrum, packet stream, audio | Implemented |
+| Interactive 3D lab: full rig, clickable slab library, animated mode shapes | Implemented |
 | Interactive suite dashboard with all scenarios in one page | Implemented |
 | Digital twin: plate model, defects, sensor, network impairments | Implemented; 8/8 validation scenarios pass |
 | Host: live UDP receiver, WAV analyser, reference builder | Implemented; UDP loopback test passes |
@@ -94,11 +98,12 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo run -p granite-sim --bin granite-twin -- suite --out out/suite
 ```
 
-This writes one report bundle per scenario and a validation index:
+This writes one report bundle per scenario plus three entry points:
 
 ```text
-out/suite/showcase.html
-out/suite/index.html
+out/suite/lab.html        interactive 3D rig — start here
+out/suite/showcase.html   multi-scenario instrument dashboard
+out/suite/index.html      validation index
 out/suite/healthy/report.html
 out/suite/healthy/scope.html
 out/suite/healthy/capture.wav
@@ -106,22 +111,39 @@ out/suite/healthy/modes.csv
 ...
 ```
 
-Open **`out/suite/showcase.html`** in a browser.  It is an interactive
-control room: pick any of the eight scenarios on the left and the selected
-animated scope loads on the right, without a page reload.  Each scope is a
-self-contained instrument: a scrolling waveform with impact markers and packet
+Open **`out/suite/lab.html`**.  It is a perspective 3D view of the whole
+installation: the granite slab on its supports, the laser vibrometer with the
+TIA/filter, the PCM1808 ADC, the ESP32 and its Wi-Fi link, and the analysis
+laptop.  The rack behind the bench is the slab library: click any tile, or a
+name in the bottom strip, and that scenario is loaded.  The verdict, modal
+frequencies, damping and flags update, and the plate visibly rings with the
+detected modes.  Drag to orbit, use the wheel to zoom, press **⚡ Tap now** to
+excite the plate, and **🔇** for synthesized audio.  The laptop screen mirrors
+the reconstructed signal and the packet dots show the UDP link, including lost
+packets.  The animation is slowed down and the deflection is exaggerated so the
+motion is visible; the frequencies and damping come from the Rust analysis.
+
+**`out/suite/showcase.html`** is the companion instrument dashboard: pick a
+scenario on the left and the full animated scope loads on the right without a
+page reload.  Each scope is a scrolling waveform with impact markers and packet
 gaps, a moving-RMS trigger strip, the averaged modal spectrum with detected and
-reference modes, transport counters, and the mode table.  The page starts
-animating immediately (muted); click **🔇** for sound, click the trace to seek,
-use **⏭ Next tap** to jump to an impact, and click a mode row to highlight it in
-the spectrum.  Nothing is fetched from the network — the HTML embeds the
-samples itself.
+reference modes, transport counters, and the mode table.  It starts animating
+immediately (muted); click **🔇** for sound, click the trace to seek, use
+**⏭ Next tap** to jump to an impact, and click a mode row to highlight it in the
+spectrum.  Nothing is fetched from the network — the HTML embeds the samples
+itself.
 
 A single animated scope without the full bundle:
 
 ```bash
 cargo run -p granite-sim --bin granite-twin -- scope --scenario crack \
   --out out/scope-crack.html
+```
+
+The 3D lab alone (it runs all eight scenarios):
+
+```bash
+cargo run -p granite-sim --bin granite-twin -- lab --out out/lab.html
 ```
 
 For the full demo — tests, suite, host analysis and automatic browser launch
