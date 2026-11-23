@@ -445,7 +445,7 @@ const LAB_BODY: &str = r##"
     <button type="button" id="sound" title="enable sound">🔇</button>
     <button type="button" id="labels" aria-pressed="true">Labels</button>
     <button type="button" id="reset">↺ View</button>
-    <span class="hint">drag to orbit · wheel to zoom · click a slab · <kbd>space</kbd> pause</span>
+    <span class="hint">drag to orbit · wheel zoom · click a slab to load · click the plate to tap · <kbd>space</kbd> pause</span>
   </div>
 </footer>
 <div class="tooltip" id="tooltip" hidden></div>
@@ -468,7 +468,7 @@ const ui = {
 let W = 1, H = 1, DPR = 1, viewX = 0, viewY = 0, focal = 900;
 let eye = [0, 0, 0], vright = [1, 0, 0], vup = [0, 1, 0], vfwd = [0, 0, 1];
 let queue = [], overlay = [], labels = [], rackHits = [], groupQueue = null;
-let hovered = -1, dragging = null;
+let hovered = -1, dragging = null, plateHit = null;
 let current = null, vib = [];
 let last = 0, lastHud = 0;
 const DEFLECT = 18;
@@ -950,6 +950,8 @@ function drawPlate() {
         fill, fill, 1);
     }
   }
+  plateHit = [top[0][0], top[0][NX], top[NY][NX], top[NY][0]].map(project);
+  if (!plateHit.every(Boolean)) plateHit = null;
   const rim = [];
   for (let i = 0; i <= NX; i++) rim.push([top[0][i][0], top[0][i][1], top[0][i][2] + 0.06]);
   for (let j = 1; j <= NY; j++) rim.push([top[j][NX][0], top[j][NX][1], top[j][NX][2] + 0.06]);
@@ -1161,6 +1163,7 @@ function render() {
   overlay = [];
   labels = [];
   rackHits = [];
+  plateHit = null;
   drawWall();
   drawBench();
   drawRack();
@@ -1432,7 +1435,8 @@ canvas.addEventListener('pointermove', (event) => {
   }
   const index = pickRack(event.clientX, event.clientY);
   hovered = index;
-  canvas.style.cursor = index >= 0 ? 'pointer' : 'grab';
+  const overPlate = plateHit ? pointInPoly(event.clientX, event.clientY, plateHit) : false;
+  canvas.style.cursor = index >= 0 || overPlate ? 'pointer' : 'grab';
   if (index >= 0) showTooltip(scenes[index], event.clientX, event.clientY);
   else hideTooltip();
 });
@@ -1443,7 +1447,12 @@ canvas.addEventListener('pointerup', (event) => {
   canvas.style.cursor = 'grab';
   if (moved < 5) {
     const index = pickRack(event.clientX, event.clientY);
-    if (index >= 0) selectScene(scenes[index].id);
+    if (index >= 0) {
+      selectScene(scenes[index].id);
+    } else if (plateHit && pointInPoly(event.clientX, event.clientY, plateHit)) {
+      if (!state.playing) setPlaying(true);
+      triggerTap(0.04);
+    }
   }
 });
 
